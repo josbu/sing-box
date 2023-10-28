@@ -169,8 +169,7 @@ error() { echo -e "\033[31m\033[01m$*\033[0m" && exit 1; } # 红色
 info() { echo -e "\033[32m\033[01m$*\033[0m"; }   # 绿色
 hint() { echo -e "\033[33m\033[01m$*\033[0m"; }   # 黄色
 reading() { read -rp "$(info "$1")" "$2"; }
-text() { eval echo "\${${L}[$*]}"; }
-text_eval() { eval echo "\$(eval echo "\${${L}[$*]}")"; }
+text() { grep -q '\$' <<< "${E[$*]}" && eval echo "\$(eval echo "\${${L}[$*]}")" || eval echo "\${${L}[$*]}"; }
 
 # 自定义友道或谷歌翻译函数
 translate() {
@@ -181,7 +180,7 @@ translate() {
 
 # 脚本当天及累计运行次数统计
 statistics_of_run-times() {
-  local COUNT=$(curl --retry 2 -ksm2 "https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fraw.githubusercontent.com%2Ffscarmen%2Fsing-box%2Fmain%2Fsing-box.sh" 2>&1 | grep -m1 -oE "[0-9]+[ ]+/[ ]+[0-9]+") &&
+  local COUNT=$(wget -qO- -t1T2 "https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fraw.githubusercontent.com%2Ffscarmen%2Fsing-box%2Fmain%2Fsing-box.sh" 2>&1 | grep -m1 -oE "[0-9]+[ ]+/[ ]+[0-9]+") &&
   TODAY=$(cut -d " " -f1 <<< "$COUNT") &&
   TOTAL=$(cut -d " " -f3 <<< "$COUNT")
 }
@@ -213,7 +212,7 @@ input_cdn() {
     echo ""
     for c in "${!CDN_DOMAIN[@]}"; do hint " $[c+1]. ${CDN_DOMAIN[c]} "; done
 
-    reading "\n $(text_eval 53) " CUSTOM_CDN
+    reading "\n $(text 53) " CUSTOM_CDN
     case "$CUSTOM_CDN" in
       [1-${#CDN_DOMAIN[@]}] )
         CDN="${CDN_DOMAIN[$((CUSTOM_CDN-1))]}"
@@ -234,10 +233,10 @@ check_root() {
 check_arch() {
   # 判断处理器架构
   case $(uname -m) in
-    aarch64|arm64 ) ARCH=arm64 ;;
-    x86_64|amd64 ) ARCH=amd64 ;;
-    armv7l ) ARCH=armv7 ;;
-    * ) error " $(text_eval 25) "
+    aarch64|arm64 ) SING_BOX_ARCH=arm64 ;;
+    x86_64|amd64 ) [[ "$(awk -F ':' '/flags/{print $2; exit}' /proc/cpuinfo)" =~ avx2 ]] && SING_BOX_ARCH=amd64v3 || SING_BOX_ARCH=amd64 ;;
+    armv7l ) SING_BOX_ARCH=armv7 ;;
+    * ) error " $(text 25) "
   esac
 }
 
@@ -248,9 +247,9 @@ check_install() {
     {
     local ONLINE=$(wget -qO- "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep "tag_name" | sed "s@.*\"v\(.*\)\",@\1@g")
     ONLINE=${ONLINE:-'1.5.2'}
-    wget -qO $TEMP_DIR/sing-box.tar.gz ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$ARCH.tar.gz >/dev/null 2>&1
-    tar xzf $TEMP_DIR/sing-box.tar.gz -C $TEMP_DIR sing-box-$ONLINE-linux-$ARCH/sing-box >/dev/null 2>&1
-    mv $TEMP_DIR/sing-box-$ONLINE-linux-$ARCH/sing-box $TEMP_DIR >/dev/null 2>&1
+    wget -qO $TEMP_DIR/sing-box.tar.gz ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz >/dev/null 2>&1
+    tar xzf $TEMP_DIR/sing-box.tar.gz -C $TEMP_DIR sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box >/dev/null 2>&1
+    mv $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box $TEMP_DIR >/dev/null 2>&1
     }&
   fi
 }
@@ -327,7 +326,7 @@ check_system_info() {
 
   # 先排除 EXCLUDE 里包括的特定系统，其他系统需要作大发行版本的比较
   for ex in "${EXCLUDE[@]}"; do [[ ! $(tr 'A-Z' 'a-z' <<< "$SYS")  =~ $ex ]]; done &&
-  [[ "$(echo "$SYS" | sed "s/[^0-9.]//g" | cut -d. -f1)" -lt "${MAJOR[int]}" ]] && error " $(text_eval 6) "
+  [[ "$(echo "$SYS" | sed "s/[^0-9.]//g" | cut -d. -f1)" -lt "${MAJOR[int]}" ]] && error " $(text 6) "
 }
 
 # 检测 IPv4 IPv6 信息
@@ -355,7 +354,7 @@ enter_start_port() {
     if [ "$PORT_ERROR_TIME" = 0 ]; then
       error "\n $(text 3) \n"
     else
-      [ -z "$START_PORT" ] && reading "\n $(text_eval 11) " START_PORT
+      [ -z "$START_PORT" ] && reading "\n $(text 11) " START_PORT
     fi
     START_PORT=${START_PORT:-"$START_PORT_DEFAULT"}
     if [[ "$START_PORT" =~ ^[1-9][0-9]{3,4}$ && "$START_PORT" -ge "$MIN_PORT" && "$START_PORT" -le "$MAX_PORT" ]]; then
@@ -366,7 +365,7 @@ enter_start_port() {
           lsof -i:$port >/dev/null 2>&1 && IN_USED+=("$port")
         fi
       done
-      [ "${#IN_USED[*]}" -eq 0 ] && break || warning "\n $(text_eval 44) \n"
+      [ "${#IN_USED[*]}" -eq 0 ] && break || warning "\n $(text 44) \n"
     fi
   done
 }
@@ -421,7 +420,7 @@ sing-box_variable() {
   fi
 
   # 输入服务器 IP,默认为检测到的服务器 IP，如果全部为空，则提示并退出脚本
-  [ -z "$SERVER_IP" ] && reading "\n $(text_eval 10) " SERVER_IP
+  [ -z "$SERVER_IP" ] && reading "\n $(text 10) " SERVER_IP
   SERVER_IP=${SERVER_IP:-"$SERVER_IP_DEFAULT"} && WS_SERVER_IP=$SERVER_IP
   [ -z "$SERVER_IP" ] && error " $(text 47) "
 
@@ -430,7 +429,7 @@ sing-box_variable() {
     local DOMAIN_ERROR_TIME=5
     until [ -n "$VMESS_HOST_DOMAIN" ]; do
       (( DOMAIN_ERROR_TIME-- )) || true
-      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VMESS && reading "\n $(text_eval 50) " VMESS_HOST_DOMAIN || error "\n $(text 3) \n"
+      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VMESS && reading "\n $(text 50) " VMESS_HOST_DOMAIN || error "\n $(text 3) \n"
     done
   fi
 
@@ -438,7 +437,7 @@ sing-box_variable() {
     local DOMAIN_ERROR_TIME=5
     until [ -n "$VLESS_HOST_DOMAIN" ]; do
       (( DOMAIN_ERROR_TIME-- )) || true
-      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VLESS && reading "\n $(text_eval 50) " VLESS_HOST_DOMAIN || error "\n $(text 3) \n"
+      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VLESS && reading "\n $(text 50) " VLESS_HOST_DOMAIN || error "\n $(text 3) \n"
     done
   fi
 
@@ -449,11 +448,11 @@ sing-box_variable() {
 
   # 输入 UUID ，错误超过 5 次将会退出
   UUID_DEFAULT=$($TEMP_DIR/sing-box generate uuid)
-  [ -z "$UUID" ] && reading "\n $(text_eval 12) " UUID
+  [ -z "$UUID" ] && reading "\n $(text 12) " UUID
   local UUID_ERROR_TIME=5
   until [[ -z "$UUID" || "$UUID" =~ ^[A-F0-9a-f]{8}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{12}$ ]]; do
     (( UUID_ERROR_TIME-- )) || true
-    [ "$UUID_ERROR_TIME" = 0 ] && error "\n $(text 3) \n" || reading "\n $(text_eval 4) \n" UUID
+    [ "$UUID_ERROR_TIME" = 0 ] && error "\n $(text 3) \n" || reading "\n $(text 4) \n" UUID
   done
   UUID=${UUID:-"$UUID_DEFAULT"}
 
@@ -465,7 +464,7 @@ sing-box_variable() {
   else
     NODE_NAME_DEFAULT="Sing-Box"
   fi
-  reading "\n $(text_eval 13) " NODE_NAME
+  reading "\n $(text 13) " NODE_NAME
   NODE_NAME="${NODE_NAME:-"$NODE_NAME_DEFAULT"}"
 }
 
@@ -977,7 +976,7 @@ EOF
   [ -n "$PORT_HYSTERIA2" ] && V2RAYN_PROTOCAL=Hysteria2 && V2RAYN_KERNEL=hysteria2 && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "$(text_eval 54)
+$(info "$(text 54)
 
 server: \"${SERVER_IP_1}:${PORT_HYSTERIA2}\"
 auth: ${UUID}
@@ -1000,7 +999,7 @@ EOF
   [ -n "$PORT_TUIC" ] && V2RAYN_PROTOCAL=Tuic && V2RAYN_KERNEL=sing_box && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "$(text_eval 54)
+$(info "$(text 54)
 
 {
     \"log\":{
@@ -1047,7 +1046,7 @@ EOF
   [ -n "$PORT_SHADOWTLS" ] && V2RAYN_PROTOCAL=ShadowTLS && V2RAYN_KERNEL=sing_box && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "$(text_eval 54)
+$(info "$(text 54)
 
 {
   \"log\":{
@@ -1106,14 +1105,14 @@ EOF
 ----------------------------
 $(info "vmess://$(base64 -w0 <<< "{ \"v\": \"2\", \"ps\": \"${NODE_NAME} vmess ws\", \"add\": \"${CDN}\", \"port\": \"80\", \"id\": \"${UUID}\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"${VMESS_HOST_DOMAIN}\", \"path\": \"/${UUID}-vmess\", \"tls\": \"\", \"sni\": \"\", \"alpn\": \"\" }" | sed "s/Cg==$//")
 
-$(text_eval 52)")
+$(text 52)")
 EOF
   [ -n "$PORT_VLESS_WS" ] && TYPE_HOST_DOMAIN=$VLESS_HOST_DOMAIN && TYPE_PORT_WS=$PORT_VLESS_WS && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
 $(info "vless://${UUID}@${CDN}:443?encryption=none&security=tls&sni=${VLESS_HOST_DOMAIN}&type=ws&host=${VLESS_HOST_DOMAIN}&path=%2F${UUID}-vless%3Fed%3D2048#${NODE_NAME} vless ws
 
-$(text_eval 52)")
+$(text 52)")
 EOF
 
   cat >> $WORK_DIR/list << EOF
@@ -1154,14 +1153,14 @@ EOF
 ----------------------------
 $(hint "vmess://$(base64 -w0 <<< none:${UUID}@${CDN}:80 | sed "s/Cg==$//")?remarks=${NODE_NAME}%20vmess%20ws&obfsParam=${VMESS_HOST_DOMAIN}&path=/${UUID}-vmess&obfs=websocket&alterId=0
 
-$(text_eval 52)")
+$(text 52)")
 EOF
   [ -n "$PORT_VLESS_WS" ] && TYPE_HOST_DOMAIN=$VLESS_HOST_DOMAIN && TYPE_PORT_WS=$PORT_VLESS_WS && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
 $(hint "vless://$(base64 -w0 <<< "auto:${UUID}@${CDN}:443" | sed "s/Cg==$//")?remarks=${NODE_NAME}%20vless%20ws&obfsParam=${VLESS_HOST_DOMAIN}&path=/${UUID}-vless?ed=2048&obfs=websocket&tls=1&peer=${VLESS_HOST_DOMAIN}&allowInsecure=1
 
-$(text_eval 52)")
+$(text 52)")
 EOF
   cat >> $WORK_DIR/list << EOF
 *******************************************
@@ -1201,14 +1200,14 @@ EOF
 ----------------------------
 $(info "- {name: \"${NODE_NAME} vmess ws\", type: vmess, server: ${CDN}, port: 80, uuid: ${UUID}, udp: true, tls: false, alterId: 0, cipher: none, skip-cert-verify: true, network: ws, ws-opts: { path: \"/${UUID}-vmess\", headers: { Host: ${VMESS_HOST_DOMAIN}, max-early-data: 2048, early-data-header-name: Sec-WebSocket-Protocol} } }
 
-$(text_eval 52)")
+$(text 52)")
 EOF
   [ -n "$PORT_VLESS_WS" ] && TYPE_HOST_DOMAIN=$VLESS_HOST_DOMAIN && TYPE_PORT_WS=$PORT_VLESS_WS && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
 $(info "- {name: \"${NODE_NAME} vless ws\", type: vless, server: ${CDN}, port: 443, uuid: ${UUID}, udp: true, tls: true, servername: ${VLESS_HOST_DOMAIN}, network: ws, skip-cert-verify: true, ws-opts: { path: \"/${UUID}-vless?ed=2048\", headers: { Host: ${VLESS_HOST_DOMAIN} } } }
 
-$(text_eval 52)")
+$(text 52)")
 EOF
   cat >> $WORK_DIR/list << EOF
 *******************************************
@@ -1250,13 +1249,13 @@ EOF
 ----------------------------
 $(hint "vmess://$(base64 -w0 <<< "{\"add\":\"${CDN}\",\"aid\":\"0\",\"host\":\"${VMESS_HOST_DOMAIN}\",\"id\":\"${UUID}\",\"net\":\"ws\",\"path\":\"/${UUID}-vmess\",\"port\":\"80\",\"ps\":\"${NODE_NAME} vmess ws\",\"scy\":\"none\",\"sni\":\"\",\"tls\":\"\",\"type\":\"\",\"v\":\"2\"}" | sed "s/Cg==$//")
 
-$(text_eval 52)")
+$(text 52)")
 EOF
   [ -n "$PORT_VLESS_WS" ] && TYPE_HOST_DOMAIN=$VLESS_HOST_DOMAIN && TYPE_PORT_WS=$PORT_VLESS_WS && cat >> $WORK_DIR/list << EOF
 ----------------------------
 $(hint "vless://${UUID}@${CDN}:443?security=tls&sni=${VLESS_HOST_DOMAIN}&type=ws&path=/${UUID}-vless?ed%3D2048&host=${VLESS_HOST_DOMAIN}&encryption=none#${NODE_NAME}%20vless%20ws
 
-$(text_eval 52)")
+$(text 52)")
 EOF
   cat >> $WORK_DIR/list << EOF
 *******************************************
@@ -1264,7 +1263,7 @@ EOF
   cat $WORK_DIR/list
 
   # 显示脚本使用情况数据
-  info "\n $(text_eval 55) \n"
+  info "\n $(text 55) \n"
 }
 
 # 更换各协议的监听端口
@@ -1431,7 +1430,7 @@ change_protocals() {
     local DOMAIN_ERROR_TIME=5
     until [ -n "$VMESS_HOST_DOMAIN" ]; do
       (( DOMAIN_ERROR_TIME-- )) || true
-      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VMESS && reading "\n $(text_eval 50) " VMESS_HOST_DOMAIN || error "\n $(text 3) \n"
+      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VMESS && reading "\n $(text 50) " VMESS_HOST_DOMAIN || error "\n $(text 3) \n"
     done
     PORT_VMESS_WS=${REINSTALL_PORTS[$(awk -v target=$CHECK_PROTOCALS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCALS[*]}")]}
   fi
@@ -1443,7 +1442,7 @@ change_protocals() {
     local DOMAIN_ERROR_TIME=5
     until [ -n "$VLESS_HOST_DOMAIN" ]; do
       (( DOMAIN_ERROR_TIME-- )) || true
-      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VLESS && reading "\n $(text_eval 50) " VLESS_HOST_DOMAIN || error "\n $(text 3) \n"
+      [ "$DOMAIN_ERROR_TIME" != 0 ] && TYPE=VLESS && reading "\n $(text 50) " VLESS_HOST_DOMAIN || error "\n $(text 3) \n"
     done
     PORT_VLESS_WS=${REINSTALL_PORTS[$(awk -v target=$CHECK_PROTOCALS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCALS[*]}")]}
   fi
@@ -1482,17 +1481,17 @@ uninstall() {
 version() {
   local ONLINE=$(wget -qO- "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep "tag_name" | sed "s@.*\"v\(.*\)\",@\1@g")
   local LOCAL=$($WORK_DIR/sing-box version | awk '/version/{print $NF}')
-  info "\n $(text_eval 40) "
+  info "\n $(text 40) "
   [[ -n "$ONLINE" && "$ONLINE" != "$LOCAL" ]] && reading "\n $(text 9) " UPDATE || info " $(text 41) "
 
   if [[ "$UPDATE" = [Yy] ]]; then
     check_system_info
-    wget -O $TEMP_DIR/sing-box.tar.gz ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$ARCH.tar.gz
-    tar xzf $TEMP_DIR/sing-box.tar.gz -C $TEMP_DIR sing-box-$ONLINE-linux-$ARCH/sing-box
+    wget -O $TEMP_DIR/sing-box.tar.gz ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz
+    tar xzf $TEMP_DIR/sing-box.tar.gz -C $TEMP_DIR sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box
 
-    if [ -s $TEMP_DIR/sing-box-$ONLINE-linux-$ARCH/sing-box ]; then
+    if [ -s $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box ]; then
       systemctl stop sing-box
-      chmod +x $TEMP_DIR/sing-box-$ONLINE-linux-$ARCH/sing-box && mv $TEMP_DIR/sing-box-$ONLINE-linux-$ARCH/sing-box $WORK_DIR/sing-box
+      chmod +x $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box && mv $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box $WORK_DIR/sing-box
       systemctl start sing-box && sleep 2 && [ "$(systemctl is-active sing-box)" = 'active' ] && info " Sing-box $(text 28) $(text 37)" || error "Sing-box $(text 28) $(text 38) "
     else
       local error "\n $(text 42) "
@@ -1562,14 +1561,14 @@ menu() {
   clear
   hint " $(text 2) "
   echo -e "======================================================================================================================\n"
-  info " $(text 17): $VERSION\n $(text 18): $(text 1)\n $(text 19):\n\t $(text 20): $SYS\n\t $(text 21): $(uname -r)\n\t $(text 22): $ARCH\n\t $(text 23): $VIRT "
+  info " $(text 17): $VERSION\n $(text 18): $(text 1)\n $(text 19):\n\t $(text 20): $SYS\n\t $(text 21): $(uname -r)\n\t $(text 22): $SING_BOX_ARCH\n\t $(text 23): $VIRT "
   info "\t IPv4: $WAN4 $WARPSTATUS4 $COUNTRY4  $ASNORG4 "
   info "\t IPv6: $WAN6 $WARPSTATUS6 $COUNTRY6  $ASNORG6 "
   info "\t Sing-box: $STATUS\t $SING_BOX_VERSION "
   [ -n "$PID" ] && info "\t $(text 56): $PID "
   [ -n "$RUNTIME" ] && info "\t $(text 57): $RUNTIME "
   [ -n "$MEMORY_USAGE" ] && info "\t $(text 58): $MEMORY_USAGE MB"
-  [ -n "$NOW_START_PORT" ] && info "\t $(text_eval 45) "
+  [ -n "$NOW_START_PORT" ] && info "\t $(text 45) "
   echo -e "\n======================================================================================================================\n"
   for ((b=1;b<${#OPTION[*]};b++)); do hint " ${OPTION[b]} "; done
   hint " ${OPTION[0]} "
